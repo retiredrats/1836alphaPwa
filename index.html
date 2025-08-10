@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>1836 Alpha (PWA)</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <meta name="theme-color" content="#3a2d1f">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>1836 Alpha</h1>
+    <nav>
+      <button id="btn-generate">生成建议值</button>
+      <button id="btn-settle">结算本季</button>
+      <button id="btn-export">导出存档</button>
+      <label class="import-label">导入存档<input type="file" id="file-import" accept=".json"/></label>
+    </nav>
+  </header>
+  <main>
+    <section>
+      <h2>面板</h2>
+      <div id="dashboard"></div>
+    </section>
+    <section>
+      <h2>建议值（可直接编辑）</h2>
+      <div id="suggestions"></div>
+    </section>
+    <section>
+      <h2>季度新闻</h2>
+      <ul id="news"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <small>离线可用 · 数据保存在本设备（IndexedDB）。建议定期“导出存档”做备份。</small>
+  </footer>
+
+  <script type="module">
+    import './js/ui.js';
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', ()=>{
+        const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (location.protocol === 'https:' || isLocalhost) {
+          navigator.serviceWorker.register('./sw.js');
+        }
+      });
+    }
+  </script>
+</body>
+</html>

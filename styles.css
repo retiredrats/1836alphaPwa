@@ -1,0 +1,18 @@
+:root{
+  --paper:#f7f3e8; --ink:#131315; --brown:#3a2d1f; --accent:#8b5e34; --line:#d9d2c3;
+}
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=Cormorant+Garamond:wght@600&display=swap');
+*{box-sizing:border-box}
+body{ background: var(--paper); color:var(--ink); font-family:"EB Garamond",serif; margin:0; }
+header{ background:var(--paper); border-bottom:1px solid var(--line); padding:10px 16px; position:sticky; top:0; backdrop-filter: blur(3px); }
+h1{ font-family:"Cormorant Garamond",serif; margin:0 0 6px 0; color:var(--brown); letter-spacing:.5px; }
+nav button, .import-label{ margin-right:8px; border:1px solid var(--line); background:#fffaf0; color:var(--brown); padding:6px 10px; border-radius:6px; }
+.import-label input{ display:none; }
+main{ padding:16px; max-width:1100px; margin:0 auto; }
+section{ margin-bottom:22px; }
+table{ border-collapse:collapse; width:100%; background:#fffef9; margin-top:6px; }
+th,td{ border:1px solid var(--line); padding:8px 10px; text-align:right; }
+th{ background:#f0eadb; text-align:center; font-variant: small-caps; }
+td:first-child, th:first-child{ text-align:left; }
+input.inline{ width:90px; padding:4px 6px; font-family:inherit; }
+footer{ padding:16px; text-align:center; color:#6b5e4a; border-top:1px dashed var(--line); }
