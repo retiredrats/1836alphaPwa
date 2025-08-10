@@ -1,4 +1,4 @@
-const CACHE = '1836-alpha-v1';
+const CACHE = '1836-alpha-v2';
 const ASSETS = [
   './','./index.html','./styles.css','./manifest.webmanifest',
   './js/ui.js','./js/db.js','./js/logic.js','./js/seed.js',
