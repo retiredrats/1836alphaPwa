@@ -109,14 +109,38 @@ async function renderNews(){
   $('#news').innerHTML = ns.slice(0,20).map(n=> `<li>[${n.quarter}] ${n.country_id} — ${n.headline}</li>`).join('');
 }
 
-/** 单按钮：推进一步
- * 逻辑：若下一季建议不存在 → 生成建议；若已存在 → 结算
- */
-async function stepOnce(){
+/** 动态按钮：根据状态切换显示与功能 */
+async function updateStepButton(){
   const st = await needSuggestions();
-  if (st.need){ await generateSuggestions(); await renderSuggestions(); alert('已生成建议值（下一季度）。'); }
-  else{ const n = await settleQuarter(); await renderDashboard(); await renderNews(); alert('已结算 '+n+' 个国家。'); }
+  const btn = $('#btn-step');
+  if (st.need){
+    btn.textContent = '生成建议值';
+    btn.onclick = async ()=>{
+      await generateSuggestions();
+      await renderSuggestions();
+      await updateStepButton(); // 更新成结算按钮
+      alert('已生成建议值（下一季度）。');
+    };
+  } else {
+    btn.textContent = '结算本季';
+    btn.onclick = async ()=>{
+      const n = await settleQuarter();
+      await renderDashboard();
+      await renderNews();
+      await updateStepButton(); // 更新成生成按钮
+      alert('已结算 '+n+' 个国家。');
+    };
+  }
 }
+
+// 初始化时调用一次
+(async function init(){
+  await ensureSeed();
+  await renderDashboard();
+  await renderSuggestions();
+  await renderNews();
+  await updateStepButton(); // 初始化按钮状态
+})();
 
 // 事件
 $('#btn-step')?.addEventListener('click', stepOnce);
