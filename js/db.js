@@ -13,6 +13,9 @@ db.version(1).stores({
   remittance_queue: '++id, country_id, quarter_due',
   news: '++id, quarter, country_id'
 });
+db.version(2).stores({
+  fiscal_manual: '++id, country_id, quarter'   // 新增：手工财政
+});
 
 export async function exportAll(){
   const obj = {};
