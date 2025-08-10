@@ -10,9 +10,25 @@ nav button, .import-label{ margin-right:8px; border:1px solid var(--line); backg
 .import-label input{ display:none; }
 main{ padding:16px; max-width:1100px; margin:0 auto; }
 section{ margin-bottom:22px; }
+
 table{ border-collapse:collapse; width:100%; background:#fffef9; margin-top:6px; }
 th,td{ border:1px solid var(--line); padding:8px 10px; text-align:right; }
 th{ background:#f0eadb; text-align:center; font-variant: small-caps; }
 td:first-child, th:first-child{ text-align:left; }
+
 input.inline{ width:90px; padding:4px 6px; font-family:inherit; }
+
+/* 百分比输入视觉：在单元格右侧显示一个固定 % 号 */
+.cell-pct{ position:relative; display:inline-block; }
+.cell-pct input.pct{ width:88px; padding-right:18px; }
+.cell-pct::after{ content:'%'; position:absolute; right:6px; top:4px; color:#6b5e4a; pointer-events:none; }
+
+/* 折叠卡片样式（国家树状） */
+details{ border:1px solid var(--line); background:#fffef9; border-radius:8px; margin:10px 0; padding:6px 10px; }
+summary{ cursor:pointer; color:var(--brown); font-weight:600; }
+summary::-webkit-details-marker{ display:none; }
+summary::before{ content:'▸'; margin-right:6px; }
+details[open] summary::before{ content:'▾'; }
+
+/* 页脚 */
 footer{ padding:16px; text-align:center; color:#6b5e4a; border-top:1px dashed var(--line); }
