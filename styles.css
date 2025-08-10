@@ -32,3 +32,22 @@ details[open] summary::before{ content:'▾'; }
 
 /* 页脚 */
 footer{ padding:16px; text-align:center; color:#6b5e4a; border-top:1px dashed var(--line); }
+
+/* 百分比输入的固定 % 号 */
+.cell-pct{ position:relative; display:inline-block; }
+.cell-pct input.pct{ width:88px; padding-right:18px; }
+.cell-pct::after{ content:'%'; position:absolute; right:6px; top:4px; color:#6b5e4a; pointer-events:none; }
+
+/* 折叠卡片与财政表单 */
+details{ border:1px solid var(--line); background:#fffef9; border-radius:8px; margin:10px 0; padding:6px 10px; }
+summary{ cursor:pointer; color:var(--brown); font-weight:600; }
+summary::-webkit-details-marker{ display:none; }
+summary::before{ content:'▸'; margin-right:6px; }
+details[open] summary::before{ content:'▾'; }
+
+.fiscal-box{ margin-top:10px; background:#fff; border:1px dashed var(--line); padding:10px; border-radius:6px; }
+.fiscal-title{ color:var(--brown); margin-bottom:6px; }
+.fiscal-grid{ display:grid; grid-template-columns: repeat(5, minmax(120px,1fr)); gap:8px; align-items:end; }
+.fiscal-grid label{ display:flex; flex-direction:column; gap:4px; }
+.fiscal-grid input{ padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+.btn-fiscal-save{ border:1px solid var(--line); background:#fffaf0; color:var(--brown); padding:6px 10px; border-radius:6px; }
