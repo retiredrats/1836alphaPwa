@@ -10,30 +10,33 @@ export function nextQuarter(q){
   return `${y2}Q${n2}`;
 }
 function clamp(x,lo,hi){ return Math.max(lo, Math.min(hi, x)); }
-
-// 取每个国家的“最新一条”状态（按 id 最大）
 function latestByCountry(rows){
-  const map = new Map();
-  for (const r of rows){
-    const prev = map.get(r.country_id);
-    if (!prev || prev.id < r.id) map.set(r.country_id, r);
-  }
-  return Array.from(map.values());
+  const m = new Map();
+  for (const r of rows){ const p=m.get(r.country_id); if(!p||p.id<r.id) m.set(r.country_id,r); }
+  return Array.from(m.values());
+}
+
+export async function needSuggestions(){
+  const latest = latestByCountry(await db.countries_state.orderBy('id').toArray());
+  if (!latest.length) return {need:false, targets:[]};
+  const targets = latest.map(s=>({cid:s.country_id, q:nextQuarter(s.quarter)}));
+  const exist = await db.suggestions.toArray();
+  const set = new Set(exist.map(x=>`${x.country_id}|${x.quarter}`));
+  const missing = targets.filter(t=> !set.has(`${t.cid}|${t.q}`));
+  return {need: missing.length>0, targets};
 }
 
 export async function generateSuggestions(){
-  // 用最新季度来生成“下季”建议
-  const statesAll = await db.countries_state.orderBy('id').toArray();
-  const states = latestByCountry(statesAll);
-  const base = await db.base.toArray();
-  const caps = await db.caps.toArray();
-  const noise = await db.noise.toArray();
+  const states = latestByCountry(await db.countries_state.orderBy('id').toArray());
+  const base   = await db.base.toArray();
+  const caps   = await db.caps.toArray();
+  const noise  = await db.noise.toArray();
 
-  const baseMap = new Map(base.map(b=>[`${b.country_id}|${b.indicator}`, b.base_q_growth]));
-  const capMap  = new Map(caps.map(c=>[c.indicator, {min:c.min_q_growth, max:c.max_q_growth}]));
-  const noiseMap= new Map(noise.map(n=>[n.indicator, n.noise_amp]));
+  const baseMap  = new Map(base.map(b=>[`${b.country_id}|${b.indicator}`, b.base_q_growth]));
+  const capMap   = new Map(caps.map(c=>[c.indicator, {min:c.min_q_growth, max:c.max_q_growth}]));
+  const noiseMap = new Map(noise.map(n=>[n.indicator, n.noise_amp]));
 
-  // 清理“目标季度”已存在的建议，防止旧数据残留
+  // 清理目标季度旧建议
   const targets = new Set(states.map(s=> nextQuarter(s.quarter)));
   const all = await db.suggestions.toArray();
   const keep = all.filter(s=> !targets.has(s.quarter));
@@ -49,38 +52,33 @@ export async function generateSuggestions(){
       const eps  = (Math.random()*2-1)*nAmp;
       const cap  = capMap.get(ind) || {min:-0.02, max:0.02};
       const sug  = clamp(b + eps, cap.min, cap.max);
-      rows.push({
-        country_id: st.country_id, quarter: q, indicator: ind,
-        base: b, struct_effect: 0.0, noise_draw: eps,
-        suggested_q_growth: sug, min_cap: cap.min, max_cap: cap.max
-      });
+      rows.push({country_id:st.country_id, quarter:q, indicator:ind,
+                 base:b, struct_effect:0.0, noise_draw:eps,
+                 suggested_q_growth:sug, min_cap:cap.min, max_cap:cap.max});
     }
   }
   if (rows.length) await db.suggestions.bulkAdd(rows);
 }
 
 export async function settleQuarter(){
-  // 以各国“最新季度”推进到它们各自的“下一季”
-  const statesAll = await db.countries_state.orderBy('id').toArray();
-  const states = latestByCountry(statesAll);
+  const states = latestByCountry(await db.countries_state.orderBy('id').toArray());
   if (!states.length) return 0;
 
   const targetByCountry = new Map(states.map(s=> [s.country_id, nextQuarter(s.quarter)]));
-
-  // 只取这些目标季度的建议
   const suggAll = await db.suggestions.toArray();
   const suggMap = new Map();
   for (const s of suggAll){
     const t = targetByCountry.get(s.country_id);
-    if (s.quarter === t){
-      suggMap.set(`${s.country_id}|${s.indicator}`, s);
-    }
+    if (s.quarter === t) suggMap.set(`${s.country_id}|${s.indicator}`, s);
   }
 
-  const fiscal   = new Map((await db.fiscal.toArray()).map(f=>[f.country_id, f]));
   const archMap  = new Map((await db.archetype.toArray()).map(a=>[a.archetype, a]));
   const colmods  = await db.colonial_module.toArray();
   const colByCq  = new Map(colmods.map(c=>[`${c.country_id}|${c.quarter}`, c]));
+
+  // 手工财政：四项输入
+  const fmAll = await db.fiscal_manual.toArray();
+  const fmMap = new Map(fmAll.map(x=>[`${x.country_id}|${x.quarter}`, x]));
 
   let newsLines = [];
   const nextStates = [];
@@ -90,18 +88,14 @@ export async function settleQuarter(){
     const qPrev = st.quarter;
     const q     = targetByCountry.get(cid);
 
-    const g = (ind)=>{
-      const s = suggMap.get(`${cid}|${ind}`);
-      if (!s) return 0.0;
-      return clamp(s.suggested_q_growth, s.min_cap, s.max_cap);
-    };
+    const g = (ind)=>{ const s=suggMap.get(`${cid}|${ind}`); return s? clamp(s.suggested_q_growth,s.min_cap,s.max_cap):0.0; };
 
     const pop = +(st.population_m * (1+g('pop'))).toFixed(4);
     const a   = +(st.gdp_agri     * (1+g('gdp_agri'))).toFixed(3);
     let   i   = +(st.gdp_ind      * (1+g('gdp_ind'))).toFixed(3);
     let   s   = +(st.gdp_serv     * (1+g('gdp_serv'))).toFixed(3);
 
-    // 殖民回填 + 滞后汇回
+    // 殖民回填 + 滞后汇回（汇回不直接入账，仍留在队列；本季到期的汇回计入当季“临时收入”）
     const cm = colByCq.get(`${cid}|${qPrev}`);
     let indAdd=0, servAdd=0, fiscalBonus=0;
     if (cm){
@@ -124,24 +118,28 @@ export async function settleQuarter(){
       let due = q;
       const lag = (cm && cm.remittance_lag_q) || 1;
       for (let k=0;k<lag;k++) due = nextQuarter(due);
-      await db.remittance_queue.add({
-        country_id: cid, quarter_due: due,
-        amount: fiscalBonus, ind_add: indAdd, serv_add: servAdd, note: 'colonial lag'
-      });
+      await db.remittance_queue.add({country_id:cid, quarter_due:due, amount:fiscalBonus, ind_add:indAdd, serv_add:servAdd, note:'colonial lag'});
     }
 
-    // 财政
-    const fisc    = fiscal.get(cid) || {};
-    let nominal   = a + i + s;
-    let revenue   = (fisc.revenue_rate || 0.115) * nominal;
-    const dues    = await db.remittance_queue.where({country_id:cid, quarter_due:q}).toArray();
-    if (dues.length) revenue += dues.reduce((sum,d)=>sum+(d.amount||0),0);
-    const mil     = (fisc.military_per_10k || 1.0) * ((st.army_k||0)/10.0);
-    const rate    = (st.credit==='A') ? (fisc.interest_A||0.012) : (st.credit==='B') ? (fisc.interest_B||0.017) : (fisc.interest_C||0.025);
-    const expense = (fisc.expense_base||8.0) + mil + rate*(st.debt||0);
-    let debt      = +(st.debt + Math.max(0, expense - revenue)).toFixed(3);
+    // —— 新财政规则：四项手填 + 到期殖民汇回 ＝ 本季净额 → 国库；不足则借债补足
+    const fm = fmMap.get(`${cid}|${q}`) || {fix_rev:0, fix_exp:0, tmp_rev:0, tmp_exp:0};
+    // 到期殖民汇回视为“临时收入”自动加上
+    const dues = await db.remittance_queue.where({country_id:cid, quarter_due:q}).toArray();
+    const dueSum = dues.reduce((t,d)=> t+(d.amount||0), 0);
+    const manualTmpRev = Number(fm.tmp_rev||0) + dueSum;
 
-    // 信用评级
+    const net = (Number(fm.fix_rev||0) + manualTmpRev) - (Number(fm.fix_exp||0) + Number(fm.tmp_exp||0));
+
+    // 国库与债务
+    const prevTreasury = Number(st.treasury||0);
+    let treasury = prevTreasury + net;
+    let debt = Number(st.debt||0);
+    if (treasury < 0){
+      debt += Math.abs(treasury); // 借债填坑
+      treasury = 0;
+    }
+    // 信用评级（以债务/GDP来粗略调整）
+    const nominal = a + i + s;
     let credit = st.credit;
     const debtRatio = debt / Math.max(nominal, 1e-6);
     if (debtRatio>1.2 && (credit==='A'||credit==='B')) credit='C';
@@ -154,6 +152,7 @@ export async function settleQuarter(){
       infl = Math.max(30, infl-1);
     }
 
+    // 新状态
     nextStates.push({
       country_id: cid, country_name: st.country_name, quarter: q,
       population_m: pop, gdp_agri: a, gdp_ind: i, gdp_serv: s,
@@ -161,17 +160,19 @@ export async function settleQuarter(){
       morale: Math.max(40, Math.min(90, st.morale + (Math.random()<0.5?-1:1))),
       training: Math.max(40, Math.min(90, st.training + (Math.random()<0.6?0:1))),
       legitimacy: leg, influence: infl,
-      revenue: +revenue.toFixed(3), expense: +expense.toFixed(3),
-      debt: debt, credit: credit,
+      // 旧 revenue/expense 字段不再使用，可留0仅作显示
+      revenue: 0, expense: 0,
+      treasury: +treasury.toFixed(2),
+      debt: +debt.toFixed(2), credit,
       port_level_home: st.port_level_home, logistics_delay_q: st.logistics_delay_q
     });
 
-    // 用掉的汇回，清队列
+    // 清掉已入账的汇回
     for (const d of dues){ await db.remittance_queue.delete(d.id); }
 
     newsLines.push({
       quarter: q, country_id: cid,
-      headline: `${q} ${cid}: 农/工/服 ${a.toFixed(1)}/${i.toFixed(1)}/${s.toFixed(1)}；财政 收入${revenue.toFixed(2)} 支出${expense.toFixed(2)} 债务${debt.toFixed(2)} 信用${credit}。`
+      headline: `${q} ${cid}: 农/工/服 £${a.toFixed(1)}/£${i.toFixed(1)}/£${s.toFixed(1)}；本季净额 £${net.toFixed(2)} → 国库 £${treasury.toFixed(2)}；债务 £${debt.toFixed(2)}。`
     });
   }
 
